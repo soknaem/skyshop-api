@@ -163,22 +163,22 @@ services:
       start_period: 20s
     # No "ports:" - only Caddy can reach it, so X-Forwarded-For cannot be spoofed from outside.
 
-  caddy:
-    image: caddy:2-alpine
-    container_name: shop-caddy
-    restart: unless-stopped
-    environment:
-      DOMAIN: ${DOMAIN:-:80}
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      gateway: { condition: service_healthy }
-    networks: [shop]
+#  caddy:
+#    image: caddy:2-alpine
+#    container_name: shop-caddy
+#    restart: unless-stopped
+#    environment:
+#      DOMAIN: ${DOMAIN:-:80}
+#    ports:
+#      - "80:80"
+#      - "443:443"
+#    volumes:
+#      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+#      - caddy_data:/data
+#      - caddy_config:/config
+#    depends_on:
+#      gateway: { condition: service_healthy }
+#    networks: [shop]
 
 networks:
   shop:
