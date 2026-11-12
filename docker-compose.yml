@@ -1,0 +1,191 @@
+# SkyShop API - production compose for a single EC2 host.
+# Public:  caddy (80/443) -> gateway:8000
+# Private: auth, ops, report, media, chat, notify, postgres (Docker network only)
+
+x-common-env: &common-env
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  AUTH_URL: http://auth:8001
+  OPS_URL: http://ops:8002
+  REPORT_URL: http://report:8003
+  MEDIA_URL: http://media:8004
+  CHAT_URL: http://chat:8005
+  NOTIFY_URL: http://notify:8006
+
+x-service: &service
+  restart: unless-stopped
+  env_file: .env
+  environment: *common-env
+  networks: [shop]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shop-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-shop}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: postgres
+    volumes:
+      - shop_pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [shop]
+    # No "ports:" on purpose - the database is not reachable from the internet.
+
+  notify:
+    <<: *service
+    build: { context: ., args: { SERVICE_DIR: notify_service } }
+    image: shop/notify:latest
+    container_name: shop-notify
+    command: uvicorn notify_app.main:app --host 0.0.0.0 --port 8006
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck: &hc8006
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8006/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  auth:
+    <<: *service
+    build: { context: ., args: { SERVICE_DIR: auth_service } }
+    image: shop/auth:latest
+    container_name: shop-auth
+    command: uvicorn auth_app.main:app --host 0.0.0.0 --port 8001
+    volumes:
+      # RSA key pair is generated on first start; keep it or every login token becomes invalid
+      - auth_keys:/app/auth_service/keys
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8001/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  report:
+    <<: *service
+    build: { context: ., args: { SERVICE_DIR: report_service } }
+    image: shop/report:latest
+    container_name: shop-report
+    command: uvicorn report_app.main:app --host 0.0.0.0 --port 8003
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8003/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  ops:
+    <<: *service
+    build: { context: ., args: { SERVICE_DIR: ops_service } }
+    image: shop/ops:latest
+    container_name: shop-ops
+    command: uvicorn ops_app.main:app --host 0.0.0.0 --port 8002
+    depends_on:
+      postgres: { condition: service_healthy }
+      report: { condition: service_healthy }
+      notify: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8002/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  media:
+    <<: *service
+    build: { context: ., args: { SERVICE_DIR: media_service } }
+    image: shop/media:latest
+    container_name: shop-media
+    command: uvicorn media_app.main:app --host 0.0.0.0 --port 8004
+    volumes:
+      - media_storage:/app/media_service/storage   # uploaded product images
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8004/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  chat:
+    <<: *service
+    build: { context: ., args: { SERVICE_DIR: chat_service } }
+    image: shop/chat:latest
+    container_name: shop-chat
+    command: uvicorn chat_app.main:app --host 0.0.0.0 --port 8005
+    depends_on:
+      postgres: { condition: service_healthy }
+      notify: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8005/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  gateway:
+    <<: *service
+    build: { context: ., args: { SERVICE_DIR: gateway } }
+    image: shop/gateway:latest
+    container_name: shop-gateway
+    # --proxy-headers: use the real client IP from Caddy, otherwise rate limiting sees one IP for everybody
+    command: >
+      uvicorn gateway_app.main:app --host 0.0.0.0 --port 8000
+      --no-access-log --proxy-headers --forwarded-allow-ips="*"
+    depends_on:
+      auth: { condition: service_healthy }
+      ops: { condition: service_healthy }
+      report: { condition: service_healthy }
+      media: { condition: service_healthy }
+      chat: { condition: service_healthy }
+      notify: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # No "ports:" - only Caddy can reach it, so X-Forwarded-For cannot be spoofed from outside.
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: shop-caddy
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      gateway: { condition: service_healthy }
+    networks: [shop]
+
+networks:
+  shop:
+
+volumes:
+  shop_pgdata:
+  auth_keys:
+  media_storage:
+  caddy_data:
+  caddy_config:

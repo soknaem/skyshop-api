@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+httpx
+websockets
+PyJWT[crypto]
+pydantic-settings

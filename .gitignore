@@ -1,0 +1,12 @@
+.env
+.env.example
+.venv/
+__pycache__/
+*.pyc
+auth_service/keys/
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+.idea/
+
+media_service/storage/*.webp

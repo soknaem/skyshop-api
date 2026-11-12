@@ -1,0 +1,14 @@
+.env
+.env.*
+.venv/
+**/__pycache__/
+**/*.pyc
+.git
+.idea/
+frontend/
+scripts/
+README.md
+# never bake secrets or uploads into an image
+auth_service/keys/*
+media_service/storage/*
+!media_service/storage/.gitkeep

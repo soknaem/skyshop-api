@@ -1,0 +1,7 @@
+# DOMAIN=api.example.com  -> automatic HTTPS (Let's Encrypt)
+# DOMAIN=:80              -> plain HTTP on the server IP (testing only)
+{$DOMAIN} {
+	encode zstd gzip
+	# WebSockets (/ws/*) are proxied automatically
+	reverse_proxy gateway:8000
+}

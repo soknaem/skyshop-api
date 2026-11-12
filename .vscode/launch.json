@@ -1,0 +1,103 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "All Python services (start_all.py)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/start_all.py",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Gateway :8000",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "gateway_app.main:app",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}/gateway"
+    },
+    {
+      "name": "Auth :8001",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "auth_app.main:app",
+        "--port",
+        "8001",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}/auth_service"
+    },
+    {
+      "name": "Operation :8002",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "ops_app.main:app",
+        "--port",
+        "8002",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}/ops_service"
+    },
+    {
+      "name": "Report :8003",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "report_app.main:app",
+        "--port",
+        "8003",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}/report_service"
+    },
+    {
+      "name": "Media :8004",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "media_app.main:app",
+        "--port",
+        "8004",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}/media_service"
+    },
+    {
+      "name": "Chat :8005",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "chat_app.main:app",
+        "--port",
+        "8005",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}/chat_service"
+    },
+    {
+      "name": "Notify :8006",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "notify_app.main:app",
+        "--port",
+        "8006",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}/notify_service"
+    }
+  ]
+}
