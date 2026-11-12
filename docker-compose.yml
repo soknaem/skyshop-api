@@ -1,5 +1,5 @@
 # SkyShop API - production compose for a single EC2 host.
-# Public:  caddy (80/443) -> gateway:8000
+# Public: host Nginx (80/443) -> 127.0.0.1:8000 -> gateway
 # Private: auth, ops, report, media, chat, notify, postgres (Docker network only)
 
 x-common-env: &common-env
@@ -39,7 +39,7 @@ services:
       timeout: 3s
       retries: 10
     networks: [shop]
-    # No "ports:" on purpose - the database is not reachable from the internet.
+    # No ports: the database is not reachable from the internet.
 
   notify:
     <<: *service
@@ -63,7 +63,7 @@ services:
     container_name: shop-auth
     command: uvicorn auth_app.main:app --host 0.0.0.0 --port 8001
     volumes:
-      # RSA key pair is generated on first start; keep it or every login token becomes invalid
+      # Keep the generated RSA keys; otherwise existing login tokens become invalid.
       - auth_keys:/app/auth_service/keys
     depends_on:
       postgres: { condition: service_healthy }
@@ -113,7 +113,7 @@ services:
     container_name: shop-media
     command: uvicorn media_app.main:app --host 0.0.0.0 --port 8004
     volumes:
-      - media_storage:/app/media_service/storage   # uploaded product images
+      - media_storage:/app/media_service/storage
     depends_on:
       postgres: { condition: service_healthy }
     healthcheck:
@@ -144,10 +144,12 @@ services:
     build: { context: ., args: { SERVICE_DIR: gateway } }
     image: shop/gateway:latest
     container_name: shop-gateway
-    # --proxy-headers: use the real client IP from Caddy, otherwise rate limiting sees one IP for everybody
     command: >
       uvicorn gateway_app.main:app --host 0.0.0.0 --port 8000
       --no-access-log --proxy-headers --forwarded-allow-ips="*"
+    ports:
+      # Host Nginx can connect; the gateway is not exposed directly to the internet.
+      - "127.0.0.1:8000:8000"
     depends_on:
       auth: { condition: service_healthy }
       ops: { condition: service_healthy }
@@ -161,24 +163,23 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
-    # No "ports:" - only Caddy can reach it, so X-Forwarded-For cannot be spoofed from outside.
 
-#  caddy:
-#    image: caddy:2-alpine
-#    container_name: shop-caddy
-#    restart: unless-stopped
-#    environment:
-#      DOMAIN: ${DOMAIN:-:80}
-#    ports:
-#      - "80:80"
-#      - "443:443"
-#    volumes:
-#      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-#      - caddy_data:/data
-#      - caddy_config:/config
-#    depends_on:
-#      gateway: { condition: service_healthy }
-#    networks: [shop]
+      #  caddy:
+      #    image: caddy:2-alpine
+      #    container_name: shop-caddy
+      #    restart: unless-stopped
+      #    environment:
+      #      DOMAIN: ${DOMAIN:-:80}
+      #    ports:
+      #      - "80:80"
+      #      - "443:443"
+      #    volumes:
+      #      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      #      - caddy_data:/data
+      #      - caddy_config:/config
+      #    depends_on:
+      #      gateway: { condition: service_healthy }
+      #    networks: [shop]
 
 networks:
   shop:
@@ -187,5 +188,3 @@ volumes:
   shop_pgdata:
   auth_keys:
   media_storage:
-  caddy_data:
-  caddy_config:
