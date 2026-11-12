@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     delivery_fee: float = 0
     payment_ttl_min: int = 10
 
+
     mock_mode: bool = True
     mock_paid_after: int = 0              # >0 = auto "paid" after N seconds in mock mode
     khqr_token: str = ""
